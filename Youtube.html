@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Search</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        /* Gradient Background from Image */
+        body {
+            font-family: 'Poppins', sans-serif;
+            text-align: center;
+            background: radial-gradient(circle, rgba(48, 10, 63, 0.9) 0%, rgba(10, 5, 25, 1) 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* Title Styling */
+        h1 {
+            font-family: 'Roboto', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 10px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Input and Button Styling */
+        input {
+            width: 60%;
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            outline: none;
+            text-align: center;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        button {
+            padding: 12px 18px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #FFD700, #FFB800);
+            color: #181818;
+            font-weight: 600;
+            transition: 0.3s ease-in-out;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #FFB800, #FFD700);
+            transform: scale(1.05);
+            box-shadow: 0px 4px 12px rgba(255, 215, 0, 0.3);
+        }
+
+        /* Video Results Styling */
+        #results {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+
+        .video {
+            width: 320px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 10px rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .video:hover {
+            transform: translateY(-5px);
+            box-shadow: 0px 6px 14px rgba(255, 255, 255, 0.2);
+        }
+
+        h3 {
+            font-size: 14px;
+            color: #FFD700;
+            margin: 8px 0;
+        }
+
+        iframe {
+            width: 100%;
+            border-radius: 6px;
+        }
+
+        /* Pagination Styling */
+        #pagination {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .arrow {
+            font-size: 30px;
+            cursor: pointer;
+            transition: 0.3s ease-in-out;
+            color: #FFD700;
+            user-select: none;
+        }
+
+        .arrow:hover {
+            transform: scale(1.3);
+        }
+
+        .disabled {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>YouTube Video Search</h1>
+    <input type="text" id="searchQuery" placeholder="Search for videos..." onkeypress="handleKeyPress(event)"/>
+    <button onclick="searchYouTube()">Search</button>
+
+    <div id="results"></div>
+    <div id="pagination">
+        <span class="arrow" id="prevBtn" onclick="prevPage()">◀️</span>
+        <span id="pageNum">⏺️ Page 1 ⏺️</span>
+        <span class="arrow" id="nextBtn" onclick="nextPage()">▶️</span>
+    </div>
+
+    <script>
+        let nextPageToken = "";
+        let prevPageToken = "";
+        let currentPage = 1;
+        
+        function handleKeyPress(event) {
+            if (event.key === "Enter") {
+                searchYouTube();
+            }
+        }
+
+        function searchYouTube(pageToken = "") {
+            const apiKey = "AIzaSyChbKerXycit4KGVjnAPzNfcheHkogglv8"; // Replace with your API key
+            const query = document.getElementById("searchQuery").value;
+            if (!query) return;
+            const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoEmbeddable=true&videoDuration=medium&maxResults=10&pageToken=${pageToken}&key=${apiKey}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById("results");
+                    resultsDiv.innerHTML = "";
+
+                    nextPageToken = data.nextPageToken || "";
+                    prevPageToken = data.prevPageToken || "";
+
+                    document.getElementById("nextBtn").classList.toggle("disabled", !nextPageToken);
+                    document.getElementById("prevBtn").classList.toggle("disabled", !prevPageToken);
+
+                    let validVideos = [];
+
+                    const videoIds = data.items.map(item => item.id.videoId).join(',');
+                    const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet,status&id=${videoIds}&key=${apiKey}`;
+
+                    fetch(detailsUrl)
+                        .then(response => response.json())
+                        .then(videoData => {
+                            videoData.items.forEach(video => {
+                                const duration = video.contentDetails.duration;
+                                const isShort = /^PT([0-9]M)?([0-5]?[0-9]S)?$/.test(duration);
+
+                                if (!isShort &&
+                                    !video.contentDetails.regionRestriction &&
+                                    video.status.embeddable &&
+                                    video.status.privacyStatus !== "private" &&
+                                    video.snippet.liveBroadcastContent !== "live") {
+                                    validVideos.push(video);
+                                }
+                            });
+
+                            validVideos.slice(0, 6).forEach(video => {
+                                const videoId = video.id;
+                                const title = video.snippet.title;
+                                const videoElement = document.createElement("div");
+                                videoElement.classList.add("video");
+
+                                videoElement.innerHTML = `
+                                    <h3>${title}</h3>
+                                    <iframe width="300" height="200" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>
+                                `;
+
+                                resultsDiv.appendChild(videoElement);
+                            });
+
+                            document.getElementById("pageNum").innerText = `⏺️ Page ${currentPage} ⏺️`;
+                        });
+                });
+        }
+
+        function nextPage() {
+            if (nextPageToken) {
+                currentPage++;
+                searchYouTube(nextPageToken);
+            }
+        }
+
+        function prevPage() {
+            if (prevPageToken) {
+                currentPage--;
+                searchYouTube(prevPageToken);
+            }
+        }
+    </script>
+
+</body>
+</html>
